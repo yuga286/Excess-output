@@ -5,6 +5,11 @@ app_description = "App to handale the Food cornar account"
 app_email = "fc_food@gmail.com"
 app_license = "mit"
 
+
+doctype_js = {
+    "Work Order": "public/js/work_order.js"
+}
+
 # Apps
 # ------------------
 
