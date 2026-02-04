@@ -3,7 +3,7 @@ frappe.ui.form.on("Work Order", {
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button("Adjust Items", () => {
                 frappe.call({
-                    method: "dt_gcfoods_customization.api.get_work_order_stock_items",
+                    method: "fc_food.api.get_work_order_stock_items",
                     args: { work_order: frm.doc.name },
                     callback(r) {
                         if (!r.message || !r.message.length) {
@@ -130,7 +130,7 @@ function open_items_popup(frm, items) {
 
 
             frappe.call({
-                method: "dt_gcfoods_customization.api.create_work_order_adjustments",
+                method: "fc_food.api.create_work_order_adjustments",
                 args: {
                     work_order: frm.doc.name,
                     items: changed_items,
