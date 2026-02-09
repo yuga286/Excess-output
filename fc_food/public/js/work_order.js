@@ -40,7 +40,7 @@ function open_items_popup(frm, items) {
                     d.fields_dict.t_warehouse.get_query = function () {
                         return {
                             filters: {
-                                custom_branch: branch
+                                branch_: branch
                             }
                         };
                     };
@@ -49,7 +49,7 @@ function open_items_popup(frm, items) {
                     d.fields_dict.s_warehouse.get_query = function () {
                         return {
                             filters: {
-                                custom_branch: branch
+                                branch_: branch
                             }
                         };
                     };
@@ -161,12 +161,12 @@ function open_items_popup(frm, items) {
         r.delta_qty = 0;
     });
 
-    if (frm.doc.custom_branch) {
+    if (frm.doc.branch_) {
         d.fields_dict.t_warehouse.get_query = function () {
-            return { filters: { custom_branch: frm.doc.custom_branch } };
+            return { filters: { branch_: frm.doc.branch_ } };
         };
         d.fields_dict.s_warehouse.get_query = function () {
-            return { filters: { custom_branch: frm.doc.custom_branch } };
+            return { filters: { branch_: frm.doc.branch_ } };
         };
     }
 
