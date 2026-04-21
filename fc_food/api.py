@@ -181,6 +181,7 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
             se_scrap_issue.custom_work_order_1 = wo.name
             se_scrap_issue.posting_date = nowdate()
             se_scrap_issue.stock_entry_type = "Scrap Issue"
+            
 
             for r in scrap_issue_items:
                 se_scrap_issue.append("items", {
@@ -204,7 +205,7 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
             se_fg = frappe.new_doc("Stock Entry")
             se_fg.company = wo.company
             se_fg.branch = DEFAULT_BRANCH
-            se_fg.custom_work_order_1 = wo.name
+            # se_fg.custom_work_order_1 = wo.name
             se_fg.posting_date = nowdate()
 
             has_receipt = any(r["delta"] > 0 for r in fg_items)
@@ -245,84 +246,121 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
             se_fg.insert(ignore_permissions=True)
             se_fg.submit()
             created_docs["fg_se"] = se_fg.name
-                 
-            # for item_code, qty in scrap_items:
-            for r in scrap_items:
+            
+            # ---------------------------
+            # ADD FG ENTRIES IN TABLE
+            # ---------------------------
+            for r in fg_items:
                 wo.append("custom_post_production_adjustment", {
-                    "adjustment_type": "Excess Scrap",
+                    # "adjustment_type": "FG Adjustment",
                     "work_order_no": wo.name,
-                    # "item_code": item_code,
-                    "item_code":  r["item_code"],
+                    "item_code": r["item_code"],
                     "qty": r["delta"],
                     "posting_date": nowdate(),
-                    "stock_entry": se_fg.name
+                    "stock_entry": se_fg.name,   #  correct FG link
+                    "status": "Submit"
                 })
-                
-            wo.flags.ignore_validate_update_after_submit = True
-            wo.save(ignore_permissions=True)
-            frappe.db.commit()
+                            
+            # for item_code, qty in scrap_items:
+            
+            for r in scrap_items:
+
+                stock_entry_name = None
+
+                if flt(r["delta"]) > 0:
+                    stock_entry_name = created_docs.get("scrap_receipt_se")
+                else:
+                    stock_entry_name = created_docs.get("scrap_issue_se")
+
+                wo.append("custom_post_production_adjustment", {
+                    # "adjustment_type": "Excess Scrap",
+                    "work_order_no": wo.name,
+                    "item_code": r["item_code"],
+                    "qty": r["delta"],
+                    "posting_date": nowdate(),
+                    "stock_entry": stock_entry_name,
+                    "status": "Submit"
+                })
+            
+            
+        # for r in scrap_items:
+        #     wo.append("custom_post_production_adjustment", {
+        #         # "adjustment_type": "Excess Scrap",
+        #         "work_order_no": wo.name,
+        #         # "item_code": item_code,
+        #         "item_code":  r["item_code"],
+        #         "qty": r["delta"],
+        #         "posting_date": nowdate(),
+        #         "stock_entry": se_fg.name,
+        #         "status": "Submit"
+        #     })
+        
+            
+        wo.flags.ignore_validate_update_after_submit = True
+        wo.save(ignore_permissions=True)
+        frappe.db.commit()
             
             
             
         # =================================================
         # FG → ONE STOCK RECONCILIATION (ONLY IF REAL CHANGE)
         # =================================================
-        if fg_items:      
-            sr = frappe.new_doc("Stock Reconciliation")
-            sr.company = wo.company
-            sr.branch = DEFAULT_BRANCH
-            sr.purpose = "Stock Reconciliation"
-            sr.posting_date = nowdate()
-            # ---- FIX 1: Filter FG items with real change ----
-            fg_items_with_change = [
-                r for r in fg_items if flt(r.get("delta", 0)) != 0
-            ]
+        # if fg_items:      
+        #     sr = frappe.new_doc("Stock Reconciliation")
+        #     sr.company = wo.company
+        #     sr.branch = DEFAULT_BRANCH
+        #     sr.purpose = "Stock Reconciliation"
+        #     sr.posting_date = nowdate()
+        #     # ---- FIX 1: Filter FG items with real change ----
+        #     fg_items_with_change = [
+        #         r for r in fg_items if flt(r.get("delta", 0)) != 0
+        #     ]
             
-            # final_qty = flt(r["actual_qty"]) + flt(r["delta"])
+        #     # final_qty = flt(r["actual_qty"]) + flt(r["delta"])
 
 
-            for r in fg_items_with_change:
-                actual_qty = flt(
-                    frappe.db.get_value(
-                        "Bin",
-                        {
-                            "item_code": r["item_code"],
-                            "warehouse": t_WH
-                        },
-                        "actual_qty"
-                    ) or 0
-                )
-                delta = flt(r.get("delta", 0))
-                final_qty = actual_qty + delta
+        #     for r in fg_items_with_change:
+        #         actual_qty = flt(
+        #             frappe.db.get_value(
+        #                 "Bin",
+        #                 {
+        #                     "item_code": r["item_code"],
+        #                     "warehouse": t_WH
+        #                 },
+        #                 "actual_qty"
+        #             ) or 0
+        #         )
+        #         delta = flt(r.get("delta", 0))
+        #         final_qty = actual_qty + delta
 
                 
-                if flt(final_qty, 6) == flt(actual_qty, 6):
-                    continue
+        #         if flt(final_qty, 6) == flt(actual_qty, 6):
+        #             continue
                 
-                sr.append("items", {
-                    "item_code": r["item_code"],
-                    "warehouse": t_WH,
-                    "qty": final_qty,
-                    "allow_zero_valuation_rate": 1
-                })
+        #         sr.append("items", {
+        #             "item_code": r["item_code"],
+        #             "warehouse": t_WH,
+        #             "qty": final_qty,
+        #             "allow_zero_valuation_rate": 1
+        #         })
                 
-            sr.insert(ignore_permissions=True)
-            sr.submit()
-            created_docs["fg_reco"] = sr.name
-            for r in fg_items:
-                if flt(r["delta"]) != 0:
-                    wo.append("custom_post_production_adjustment", {
-                        "adjustment_type": "Excess FG",
-                        "work_order_no": wo.name,
-                        "item_code": r["item_code"],
-                        "qty": r["delta"],
-                        "posting_date": nowdate(),
-                        "reconciliation": sr.name
-                    })
+        #     sr.insert(ignore_permissions=True)
+        #     sr.submit()
+        #     created_docs["fg_reco"] = sr.name
+        #     for r in fg_items:
+        #         if flt(r["delta"]) != 0:
+        #             wo.append("custom_post_production_adjustment", {
+        #                 "adjustment_type": "Excess FG",
+        #                 "work_order_no": wo.name,
+        #                 "item_code": r["item_code"],
+        #                 "qty": r["delta"],
+        #                 "posting_date": nowdate(),
+        #                 "reconciliation": sr.name
+        #             })
             
-            wo.flags.ignore_validate_update_after_submit = True
-            wo.save(ignore_permissions=True)
-            frappe.db.commit()        
+        #     wo.flags.ignore_validate_update_after_submit = True
+        #     wo.save(ignore_permissions=True)
+        #     frappe.db.commit()        
             
            
 
@@ -331,3 +369,46 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
         raise
 
 
+
+
+
+
+@frappe.whitelist()
+def delete_work_order_adjustments(work_order):
+
+    import frappe
+
+    wo = frappe.get_doc("Work Order", work_order)
+
+    # STEP 1: store stock entry IDs
+    stock_entries = [
+        row.stock_entry
+        for row in wo.get("custom_post_production_adjustment")
+        if row.stock_entry
+    ]
+
+    stock_entries = list(set(stock_entries))  # optional safe
+    stock_entries = list(set(stock_entries))
+
+    # frappe.msgprint(f"Stock Entries: {stock_entries}")
+
+    #  STEP 2: clear table FIRST
+    wo.set("custom_post_production_adjustment", [])
+    wo.flags.ignore_validate_update_after_submit = True
+    wo.save(ignore_permissions=True)
+
+    #  STEP 3: cancel stock entries
+    for se_name in stock_entries:
+        try:
+            se = frappe.get_doc("Stock Entry", se_name)
+
+            se.reload()
+
+            # 🔥 cancel only
+            if se.docstatus == 1:
+                se.cancel()
+
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Cancel Error: {se_name}")
+
+    return "Cancelled Successfully"

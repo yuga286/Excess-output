@@ -278,3 +278,85 @@ function update_delta_qty(grid) {
 }
 
 
+
+frappe.ui.form.on('Work Order', {
+    refresh(frm) {
+        manage_buttons(frm);
+    },
+    onload_post_render(frm) {
+        manage_buttons(frm);
+    }
+});
+
+function manage_buttons(frm) {
+
+    // 🔹 remove only our buttons
+    frm.remove_custom_button("Adjust Items");
+    frm.remove_custom_button("Cancel Adjustment");
+
+    let table_data = frm.doc.custom_post_production_adjustment || [];
+
+    //  no data → show Adjust
+    if (table_data.length === 0) {
+        add_adjust_button(frm);
+    } 
+    // data exists → show Cancel
+    else {
+        add_cancel_button(frm);
+    }
+}
+
+function add_adjust_button(frm) {
+
+    frm.add_custom_button("Adjust Items", () => {
+
+        //  FIRST get data from server
+        frappe.call({
+            method: "fc_food.api.get_work_order_stock_items",
+            args: {
+                work_order: frm.doc.name
+            },
+            callback: function(r) {
+
+                if (!r.message || !r.message.length) {
+                    frappe.msgprint("No Stock Entries found");
+                    return;
+                }
+
+                //  THEN open popup
+                open_items_popup(frm, r.message);
+            }
+        });
+
+    });
+}
+
+function add_cancel_button(frm) {
+
+    frm.add_custom_button("Cancel Adjustment", () => {
+
+        frappe.confirm("Are you sure you want to cancel?", () => {
+
+            frappe.call({
+                method: "fc_food.api.delete_work_order_adjustments",
+                args: {
+                    work_order: frm.doc.name
+                },
+                callback: function() {
+
+                    frappe.show_alert({
+                        message: "Adjustment Cancelled",
+                        indicator: "green"
+                    });
+
+                    //  force full reload + UI rebuild
+                    frm.reload_doc().then(() => {
+                        frm.refresh();
+                    });
+                }
+            });
+
+        });
+
+    });
+}
