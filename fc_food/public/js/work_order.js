@@ -35,7 +35,6 @@ function open_items_popup(frm, items) {
                     // clear warehouses when branch changes
                     d.set_value("t_warehouse", null);
                     d.set_value("s_warehouse", null);
-
                     // Target WH filter
                     d.fields_dict.t_warehouse.get_query = function () {
                         return {
@@ -91,7 +90,7 @@ function open_items_popup(frm, items) {
                 { fieldname: "delta_qty", fieldtype: "Float", label: "Delta Qty", read_only: 1, in_list_view: 1 },
                 { fieldname: "uom", fieldtype: "Data", read_only: 1 },
                 { fieldname: "stock_uom", fieldtype: "Data", read_only: 1 },
-                { fieldname: "is_scrap_item", fieldtype: "Check", read_only: 1 },
+                { fieldname: "is_legacy_scrap_item", fieldtype: "Check", read_only: 1 },
                 { fieldname: "is_finished_item", fieldtype: "Check", read_only: 1 }
             ]
         }],
@@ -117,18 +116,17 @@ function open_items_popup(frm, items) {
                     changed_items.push({
                         item_code: r.item_code,
                         qty: delta,
-                        is_scrap_item: cint(r.is_scrap_item),
+                        is_legacy_scrap_item: cint(r.is_legacy_scrap_item),
                         is_finished_item: cint(r.is_finished_item)
                     });
                 }
             });
 
+           
             if (!changed_items.length) {
                 frappe.msgprint("No quantity change detected");
                 return;
             }
-
-
             frappe.call({
                 method: "fc_food.api.create_work_order_adjustments",
                 args: {
@@ -191,7 +189,7 @@ function prepare_base_quantities(grid) {
         }
 
         if (
-            cint(r.is_scrap_item) === 1 &&
+            cint(r.is_legacy_scrap_item) === 1 &&
             !["PCS", "NOS"].includes((r.stock_uom || "").toUpperCase())
         ) {
             grid._base_scrap_total += flt(r.qty);
@@ -200,7 +198,6 @@ function prepare_base_quantities(grid) {
 }
 
 function bind_scrap_qty_change(grid) {
-
     let debounce_timer = null;
     grid.wrapper.off("change.scrap_calc");
     grid.wrapper.on(
@@ -210,10 +207,14 @@ function bind_scrap_qty_change(grid) {
 
             const $row = $(this).closest(".grid-row");
             const docname = $row.attr("data-name");
-            if (!docname) return;
+            if (!docname) {
+                return;
+            }
 
             const row = grid.grid_rows_by_docname[docname]?.doc;
-            if (!row) return;
+            if (!row) {
+                return;
+            }
 
             clearTimeout(debounce_timer);
             debounce_timer = setTimeout(() => {
@@ -232,7 +233,7 @@ function recalc_finished_from_scrap(grid) {
     
     grid.df.data.forEach(r => {
         if (
-            cint(r.is_scrap_item) === 1 &&
+            cint(r.is_legacy_scrap_item) === 1 &&
             !["PCS", "NOS"].includes((r.stock_uom || "").toUpperCase())
         ) {
             current_scrap_total += flt(r.qty);
@@ -243,7 +244,9 @@ function recalc_finished_from_scrap(grid) {
         }
     });
 
-    if (!finished_row) return;
+    if (!finished_row) {
+        return;
+    }
 
     let new_qty = flt(
         grid._base_finished_qty +
@@ -268,8 +271,12 @@ function recalc_finished_from_scrap(grid) {
 }
 
 function update_delta_qty(grid) {
+    let changed_delta_count = 0;
     grid.df.data.forEach(r => {
         r.delta_qty = flt(r.qty) - flt(r._base_qty);
+        if (flt(r.delta_qty) !== 0) {
+            changed_delta_count++;
+        }
         let row = grid.grid_rows_by_docname[r.name];
         if (row) {
             row.refresh_field("delta_qty");
@@ -309,8 +316,6 @@ function manage_buttons(frm) {
 function add_adjust_button(frm) {
 
     frm.add_custom_button("Adjust Items", () => {
-
-        //  FIRST get data from server
         frappe.call({
             method: "fc_food.api.get_work_order_stock_items",
             args: {
@@ -322,8 +327,6 @@ function add_adjust_button(frm) {
                     frappe.msgprint("No Stock Entries found");
                     return;
                 }
-
-                //  THEN open popup
                 open_items_popup(frm, r.message);
             }
         });
@@ -336,14 +339,12 @@ function add_cancel_button(frm) {
     frm.add_custom_button("Cancel Adjustment", () => {
 
         frappe.confirm("Are you sure you want to cancel?", () => {
-
             frappe.call({
                 method: "fc_food.api.delete_work_order_adjustments",
                 args: {
                     work_order: frm.doc.name
                 },
                 callback: function() {
-
                     frappe.show_alert({
                         message: "Adjustment Cancelled",
                         indicator: "green"

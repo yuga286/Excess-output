@@ -30,7 +30,7 @@ def get_work_order_stock_items(work_order):
 				"qty",
 				"uom",
 				"stock_uom",
-				"is_scrap_item"
+				"is_legacy_scrap_item"
 			],
 			order_by="idx asc"
 		)
@@ -44,7 +44,7 @@ def get_work_order_stock_items(work_order):
 					"qty": 0,
 					"uom": r.uom,
 					"stock_uom": r.stock_uom,
-					"is_scrap_item": cint(r.is_scrap_item),
+					"is_legacy_scrap_item": cint(r.is_legacy_scrap_item),
 					"is_finished_item": 1 if r.item_code == finished_item else 0,
 					"_order": order_counter,
                     "allow_zero_valuation_rate": 1
@@ -119,7 +119,7 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
         actual_qty = 0
         
         item_code = r.get("item_code")
-        is_scrap = cint(r.get("is_scrap_item"))
+        is_scrap = cint(r.get("is_legacy_scrap_item"))
         is_fg = cint(r.get("is_finished_item"))
         
         if is_fg:
@@ -163,7 +163,7 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
                     "item_code": r["item_code"],
                     "qty": abs(r["delta"]),
                     "t_warehouse": SCRAP_WH,
-                    "is_scrap_item": 1,
+                    "is_legacy_scrap_item": 1,
                     "allow_zero_valuation_rate": 1
                 })
 
@@ -188,7 +188,7 @@ def create_work_order_adjustments(work_order, items, branch, t_warehouse, s_ware
                     "item_code": r["item_code"],
                     "qty": abs(r["delta"]),
                     "s_warehouse": SCRAP_WH,
-                    "is_scrap_item": 1,
+                    "is_legacy_scrap_item": 1,
                     "allow_zero_valuation_rate": 1
                 })
 
