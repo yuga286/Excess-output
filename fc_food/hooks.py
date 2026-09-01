@@ -138,6 +138,10 @@ doctype_js = {
 # 	"ToDo": "custom_app.overrides.CustomToDo"
 # }
 
+override_doctype_class = {
+	"Stock Reconciliation": "fc_food.overrides.stock_reconciliation.CustomStockReconciliation",
+}
+
 # Document Events
 # ---------------
 # Hook on document methods and events
@@ -246,4 +250,3 @@ doctype_js = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-
